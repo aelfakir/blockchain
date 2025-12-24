@@ -8,7 +8,9 @@ class Blockchain:
     def __init__(self):
         self.chain = []
         self.difficulty = 2 
-        self.create_block(proof=1, previous_hash='0', data="Genesis Block")
+        # We now "mine" the genesis block so it starts with a valid hash
+        genesis_proof = self.proof_of_work(0) 
+        self.create_block(proof=genesis_proof, previous_hash='0', data="Genesis Block")
 
     def create_block(self, proof, previous_hash, data="Block Data"):
         block = {
@@ -32,6 +34,7 @@ class Blockchain:
         new_proof = 1
         check_proof = False
         while check_proof is False:
+            # Mathematical puzzle to find a hash starting with '00'
             hash_operation = hashlib.sha256(str(new_proof**2 - previous_proof**2).encode()).hexdigest()
             if hash_operation[:self.difficulty] == '0' * self.difficulty:
                 check_proof = True
@@ -57,22 +60,23 @@ if st.sidebar.button("⛏️ Mine New Block"):
     st.sidebar.success(f"Block #{new_block['index']} Added!")
 
 if st.sidebar.button("♻️ Reset Blockchain"):
-    st.session_state.blockchain = Blockchain()
+    for key in st.session_state.keys():
+        del st.session_state[key]
     st.rerun()
 
 # --- 4. Main Ledger Display ---
 st.subheader("The Distributed Ledger")
 
-
-
 chain = st.session_state.blockchain.chain
 corrupted_chain_flag = False 
+
+
 
 for i, block in enumerate(chain):
     current_hash = st.session_state.blockchain.hash(block)
     
-    # VALIDATION LOGIC
-    # 1. Does this block's hash meet the difficulty (Proof of Work)?
+    # VALIDATION CHECKS
+    # 1. Does this block's hash meet the difficulty?
     is_pow_valid = current_hash[:st.session_state.blockchain.difficulty] == '0' * st.session_state.blockchain.difficulty
     
     # 2. Does it link correctly to the previous block?
@@ -82,13 +86,14 @@ for i, block in enumerate(chain):
         if block['previous_hash'] != actual_prev_hash:
             link_broken = True
 
-    # If this block is tampered OR a previous one was, the whole chain from here on is invalid
+    # If the POW is wrong (tampered) OR the link is broken, this block and all following are invalid
     if not is_pow_valid or link_broken:
         corrupted_chain_flag = True
 
     with st.expander(f"📦 Block #{block['index']}", expanded=True):
         col1, col2 = st.columns([3, 2])
         with col1:
+            # text_input triggers a rerun on every change
             user_input = st.text_input(f"Edit Data", value=block['data'], key=f"input_{i}")
             st.session_state.blockchain.chain[i]['data'] = user_input
             
@@ -96,20 +101,17 @@ for i, block in enumerate(chain):
             st.write(f"**Previous Hash:** `{block['previous_hash']}`")
         
         with col2:
-            if i == 0 and is_pow_valid:
-                st.info("Genesis Block")
-            elif corrupted_chain_flag:
+            if not corrupted_chain_flag:
+                st.success("🔗 SECURE")
+                st.caption("Hash matches Proof of Work and links are intact.")
+            else:
                 st.error("❌ INVALID / BROKEN")
                 if not is_pow_valid:
-                    st.caption("Critial: Hash does not match Proof of Work!")
+                    st.warning("Tamper Detected: Hash does not match Proof of Work!")
                 if link_broken:
-                    st.caption("Link to previous block is broken.")
-            else:
-                st.success("🔗 SECURE")
+                    st.warning("Link Broken: Previous hash does not match.")
 
-
-
-# Sidebar Status
+# Sidebar Global Status
 if corrupted_chain_flag:
     st.sidebar.error("Global Status: TAMPERED ❌")
 else:
