@@ -6,15 +6,17 @@ import streamlit as st
 class Blockchain:
     def __init__(self):
         self.chain = []
+        # Restore 'data' parameter for genesis block
         self.create_block(proof=1, previous_hash='0', data="Genesis Block")
 
+    # Restore 'data' parameter with a default value
     def create_block(self, proof, previous_hash, data="Block Data"):
         block = {
             'index': len(self.chain) + 1,
             'timestamp': str(datetime.datetime.now()),
             'proof': proof,
             'previous_hash': previous_hash,
-            'data': data
+            'data': data # Re-add the 'data' field to the block
         }
         self.chain.append(block)
         return block
@@ -39,14 +41,16 @@ class Blockchain:
 st.set_page_config(page_title="Blockchain Tamper Lab", layout="wide")
 st.title("🧪 Blockchain Tamper & Validation Lab")
 
-if 'blockchain' not in st.session_state:
-    st.session_state.blockchain = Blockchain()
+# Force re-initialization of the blockchain to ensure the latest class definition is used
+# when running in environments like Colab where session state might persist across cell re-runs.
+st.session_state.blockchain = Blockchain()
 
 # Sidebar: Actions
 st.sidebar.header("Actions")
 if st.sidebar.button("Mine New Block"):
     bc = st.session_state.blockchain
-    new_block = bc.create_block(proof=100, previous_hash=bc.hash(bc.get_previous_block()))
+    # Pass data argument when mining new block
+    new_block = bc.create_block(proof=100, previous_hash=bc.hash(bc.get_previous_block()), data=f"Block Data {len(bc.chain)}")
     st.sidebar.success(f"Block #{new_block['index']} Added!")
 
 # Sidebar: Validation Status
@@ -63,19 +67,19 @@ st.subheader("The Blockchain")
 
 for i, block in enumerate(st.session_state.blockchain.chain):
     current_hash = st.session_state.blockchain.hash(block)
-    
+
     with st.expander(f"Block #{block['index']} - Hash: {current_hash[:15]}...", expanded=True):
         col1, col2 = st.columns([3, 2])
-        
+
         with col1:
             # We use text_input to allow users to "tamper" with the data
             new_data = st.text_input(f"Data for Block {block['index']}", value=block['data'], key=f"data_{i}")
             # Update the block data in real-time
             st.session_state.blockchain.chain[i]['data'] = new_data
-            
+
             st.write(f"**Previous Hash:** `{block['previous_hash']}`")
             st.write(f"**Current Hash:** `{current_hash}`")
-        
+
         with col2:
             if i > 0:
                 prev_hash_actual = st.session_state.blockchain.hash(st.session_state.blockchain.chain[i-1])
