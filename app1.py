@@ -1,39 +1,70 @@
-# ... (Keep the Blockchain class from before) ...
+import datetime
+import hashlib
+import json
+import streamlit as st
 
-# --- Main Display ---
-st.subheader("The Blockchain Ledger")
+# --- 1. Blockchain Logic ---
+class Blockchain:
+    def __init__(self):
+        self.chain = []
+        self.difficulty = 2 # Number of leading zeros required for mining
+        # Create the Genesis Block
+        self.create_block(proof=1, previous_hash='0', data="Genesis Block")
 
-chain = st.session_state.blockchain.chain
-chain_is_corrupted = False  # Track if any previous block was tampered with
+    def create_block(self, proof, previous_hash, data="Block Data"):
+        block = {
+            'index': len(self.chain) + 1,
+            'timestamp': str(datetime.datetime.now()),
+            'proof': proof,
+            'previous_hash': previous_hash,
+            'data': data
+        }
+        self.chain.append(block)
+        return block
 
-for i, block in enumerate(chain):
-    current_hash = st.session_state.blockchain.hash(block)
-    
-    # Check if THIS specific block is valid compared to the previous one
-    link_broken = False
-    if i > 0:
-        prev_block_actual_hash = st.session_state.blockchain.hash(chain[i-1])
-        if block['previous_hash'] != prev_block_actual_hash:
-            link_broken = True
-            chain_is_corrupted = True # Mark the rest of the chain as corrupted
+    def get_previous_block(self):
+        return self.chain[-1]
 
-    with st.expander(f"Block #{block['index']}", expanded=True):
-        col1, col2 = st.columns([3, 2])
-        
-        with col1:
-            # Edit Data
-            user_data = st.text_input(f"Edit Data", value=block['data'], key=f"input_{i}")
-            st.session_state.blockchain.chain[i]['data'] = user_data
-            
-            st.write(f"**Current Hash:** `{current_hash}`")
-            st.write(f"**Previous Hash:** `{block['previous_hash']}`")
-        
-        with col2:
-            # UI logic to show the "Ripple Effect"
-            if i == 0:
-                st.info("Genesis Block (Root)")
-            elif chain_is_corrupted:
-                st.error("❌ CHAIN BROKEN")
-                st.caption("This block is invalid because a previous block was tampered with.")
+    def hash(self, block):
+        # We must sort the keys to ensure the hash is always the same for the same data
+        encoded_block = json.dumps(block, sort_keys=True).encode()
+        return hashlib.sha256(encoded_block).hexdigest()
+
+    def proof_of_work(self, previous_proof):
+        new_proof = 1
+        check_proof = False
+        while check_proof is False:
+            hash_operation = hashlib.sha256(str(new_proof**2 - previous_proof**2).encode()).hexdigest()
+            if hash_operation[:self.difficulty] == '0' * self.difficulty:
+                check_proof = True
             else:
-                st.success("🔗 Link Secure")
+                new_proof += 1
+        return new_proof
+
+    def is_chain_valid(self, chain):
+        for i in range(1, len(chain)):
+            if chain[i]['previous_hash'] != self.hash(chain[i-1]):
+                return False
+        return True
+
+# --- 2. Streamlit UI Setup ---
+st.set_page_config(page_title="Blockchain Ripple Lab", layout="wide")
+st.title("⛓️ Blockchain 'Ripple Effect' Lab")
+st.markdown("""
+    Change the data in any block to see how it invalidates **every single block** that follows it.
+""")
+
+# Initialize or Reset the Blockchain in Session State
+if 'blockchain' not in st.session_state:
+    st.session_state.blockchain = Blockchain()
+
+# --- 3. Sidebar Controls ---
+st.sidebar.header("Controls")
+
+if st.sidebar.button("⛏️ Mine New Block"):
+    bc = st.session_state.blockchain
+    prev_block = bc.get_previous_block()
+    
+    with st.sidebar.status("Computing Hash..."):
+        new_proof = bc.proof_of_work(prev_block['proof'])
+        # Link the new block to the hash of the
