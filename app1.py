@@ -7,8 +7,8 @@ import streamlit as st
 class Blockchain:
     def __init__(self):
         self.chain = []
-        self.difficulty = 2 # Number of leading zeros required for mining
-        # Create the Genesis Block
+        self.difficulty = 2 
+        # Create the Genesis Block immediately
         self.create_block(proof=1, previous_hash='0', data="Genesis Block")
 
     def create_block(self, proof, previous_hash, data="Block Data"):
@@ -26,7 +26,6 @@ class Blockchain:
         return self.chain[-1]
 
     def hash(self, block):
-        # We must sort the keys to ensure the hash is always the same for the same data
         encoded_block = json.dumps(block, sort_keys=True).encode()
         return hashlib.sha256(encoded_block).hexdigest()
 
@@ -41,20 +40,11 @@ class Blockchain:
                 new_proof += 1
         return new_proof
 
-    def is_chain_valid(self, chain):
-        for i in range(1, len(chain)):
-            if chain[i]['previous_hash'] != self.hash(chain[i-1]):
-                return False
-        return True
-
 # --- 2. Streamlit UI Setup ---
 st.set_page_config(page_title="Blockchain Ripple Lab", layout="wide")
 st.title("⛓️ Blockchain 'Ripple Effect' Lab")
-st.markdown("""
-    Change the data in any block to see how it invalidates **every single block** that follows it.
-""")
 
-# Initialize or Reset the Blockchain in Session State
+# INITIALIZATION: This is likely why blocks weren't showing
 if 'blockchain' not in st.session_state:
     st.session_state.blockchain = Blockchain()
 
@@ -67,4 +57,57 @@ if st.sidebar.button("⛏️ Mine New Block"):
     
     with st.sidebar.status("Computing Hash..."):
         new_proof = bc.proof_of_work(prev_block['proof'])
-        # Link the new block to the hash of the
+        # Use the hash of the current last block as the previous_hash for the new one
+        actual_prev_hash = bc.hash(prev_block)
+        new_block = bc.create_block(proof=new_proof, previous_hash=actual_prev_hash)
+    st.sidebar.success(f"Block #{new_block['index']} Added!")
+
+if st.sidebar.button("♻️ Reset Blockchain"):
+    st.session_state.blockchain = Blockchain()
+    st.rerun()
+
+# --- 4. Main Ledger Display ---
+st.subheader("The Distributed Ledger")
+
+
+
+# We pull the list from session state to display it
+chain_to_display = st.session_state.blockchain.chain
+corrupted_chain_flag = False 
+
+for i, block in enumerate(chain_to_display):
+    # Calculate hash of this block in its current state (with whatever text is in the box)
+    current_hash_calc = st.session_state.blockchain.hash(block)
+    
+    # Check if the chain is broken at this point
+    if i > 0:
+        actual_prev_hash = st.session_state.blockchain.hash(chain_to_display[i-1])
+        if block['previous_hash'] != actual_prev_hash:
+            corrupted_chain_flag = True
+
+    # Visual Card for the Block
+    with st.expander(f"📦 Block #{block['index']}", expanded=True):
+        col1, col2 = st.columns([3, 2])
+        
+        with col1:
+            # The input field that allows tampering
+            user_input = st.text_input(f"Data", value=block['data'], key=f"input_{i}")
+            # Update the session state immediately
+            st.session_state.blockchain.chain[i]['data'] = user_input
+            
+            st.write(f"**Current Hash:** `{current_hash_calc}`")
+            st.write(f"**Previous Hash:** `{block['previous_hash']}`")
+        
+        with col2:
+            if i == 0:
+                st.info("Genesis Block")
+            elif corrupted_chain_flag:
+                st.error("❌ INVALIDATED")
+            else:
+                st.success("🔗 SECURE")
+
+# Global Status in Sidebar
+if corrupted_chain_flag:
+    st.sidebar.error("Global Status: TAMPERED ❌")
+else:
+    st.sidebar.success("Global Status: VALID ✅")
