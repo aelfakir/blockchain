@@ -44,7 +44,7 @@ class Blockchain:
 st.set_page_config(page_title="Blockchain Ripple Lab", layout="wide")
 st.title("⛓️ Blockchain 'Ripple Effect' Lab")
 
-# INITIALIZATION: This is likely why blocks weren't showing
+# INITIALIZATION: show blocks 
 if 'blockchain' not in st.session_state:
     st.session_state.blockchain = Blockchain()
 
